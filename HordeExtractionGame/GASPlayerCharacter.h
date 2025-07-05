@@ -6,12 +6,16 @@
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
 #include "GASInputID.h"
+#include "InteractionTypes.h" // Added for FInteractionPrompt
 
 #include "GASPlayerCharacter.generated.h"
 
 // This defines the "signature" of our UI update events. 
 // It's a function that takes two floats: the new value and the old value.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAttributeChangedDelegate, float, NewValue, float, OldValue);
+
+// Delegate for when the focused interactable object changes.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFocusChangedDelegate, const FInteractionPrompt&, InteractionPrompt);
 
 
 class UGASAbilitySystemComponent;
@@ -55,13 +59,32 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Abilities | UI")
 	FOnAttributeChangedDelegate OnReserveAmmoChanged;
 
+	UPROPERTY(BlueprintAssignable, Category = "Interaction | UI")
+	FOnFocusChangedDelegate OnFocusChanged;
+
+	/** Public accessor for the currently focused actor. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	AActor* GetFocusedActor() const;
+
+	/** Immediately clears the focused actor and updates the UI. Called after a successful interaction. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void ClearInteractionFocus();
+
 
 protected:
 	// -- Pointers & Handles --
 	TWeakObjectPtr<UGASAbilitySystemComponent> AbilitySystemComponent;
 
+	// -- Interaction --
+	// This variable is now replicated so the server knows what the client is looking at.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Interaction")
+	TWeakObjectPtr<AActor> FocusedActor;
+
+	FTimerHandle TimerHandle_Interaction;
+
 	// -- Core Engine Overrides --
 	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -82,6 +105,12 @@ protected:
 	virtual void OnMaxManaAttributeChanged_Listen(const FOnAttributeChangeData& Data);
 	virtual void OnMovementSpeedAttributeChanged_Listen(const FOnAttributeChangeData& Data);
 	virtual void OnReserveAmmoAttributeChanged_Listen(const FOnAttributeChangeData& Data);
+
+	// -- Interaction --
+	void UpdateInteractionFocus();
+
+	UFUNCTION(Server, Reliable)
+	void Server_SetFocusedActor(AActor* NewFocusedActor);
 
 	// -- Blueprint-Callable Event for granting abilities --
 	UFUNCTION(BlueprintImplementableEvent, Category = "Abilities | UI")

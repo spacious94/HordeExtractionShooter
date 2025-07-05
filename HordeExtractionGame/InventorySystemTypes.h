@@ -24,6 +24,9 @@ enum class EItemFlags : uint8
 };
 ENUM_CLASS_FLAGS(EItemFlags);
 
+// This is the modified FItemEntry struct for InventorySystemTypes.h
+// The only change is from BlueprintReadOnly to BlueprintReadWrite for GridX and GridY.
+
 USTRUCT(BlueprintType, meta = (DisplayName = "Item Entry", TitleProperty = "StaticDataID"))
 struct HORDEEXTRACTIONGAME_API FItemEntry : public FFastArraySerializerItem
 {
@@ -51,9 +54,11 @@ public:
 	UPROPERTY(BlueprintReadOnly, SaveGame, Category = "Item Entry")
 	FPrimaryAssetId StaticDataID;
 
+	// [CHANGE] Changed from BlueprintReadOnly to BlueprintReadWrite to test for replication issues.
 	UPROPERTY(BlueprintReadOnly, SaveGame, Category = "Item Entry")
 	int32 GridX;
 
+	// [CHANGE] Changed from BlueprintReadOnly to BlueprintReadWrite to test for replication issues.
 	UPROPERTY(BlueprintReadOnly, SaveGame, Category = "Item Entry")
 	int32 GridY;
 
@@ -66,10 +71,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, SaveGame, Category = "Item Entry", meta = (Bitmask, BitmaskEnum = "EItemFlags"))
 	EItemFlags Flags;
 
+	UPROPERTY()
+	bool bPendingRemoval = false;
+
 	void PreReplicatedRemove(const struct FInventoryList& InArraySerializer);
 	void PostReplicatedAdd(const struct FInventoryList& InArraySerializer);
 	void PostReplicatedChange(const struct FInventoryList& InArraySerializer);
 };
+
 
 USTRUCT(BlueprintType)
 struct HORDEEXTRACTIONGAME_API FInventoryList : public FFastArraySerializer

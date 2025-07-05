@@ -8,10 +8,19 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "InteractionSource.h" // Added for the interaction interface
+#include "Camera/CameraComponent.h" // Added for camera access
+#include "Net/UnrealNetwork.h"
 
 AGASPlayerCharacter::AGASPlayerCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
+}
+
+void AGASPlayerCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AGASPlayerCharacter, FocusedActor);
 }
 
 UAbilitySystemComponent* AGASPlayerCharacter::GetAbilitySystemComponent() const
@@ -19,9 +28,20 @@ UAbilitySystemComponent* AGASPlayerCharacter::GetAbilitySystemComponent() const
 	return AbilitySystemComponent.Get();
 }
 
+AActor* AGASPlayerCharacter::GetFocusedActor() const
+{
+	return FocusedActor.Get();
+}
+
 void AGASPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Start the interaction timer only for locally controlled characters
+	if (IsLocallyControlled())
+	{
+		GetWorldTimerManager().SetTimer(TimerHandle_Interaction, this, &AGASPlayerCharacter::UpdateInteractionFocus, 0.1f, true);
+	}
 }
 
 void AGASPlayerCharacter::PossessedBy(AController* NewController)
@@ -73,6 +93,9 @@ void AGASPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 
 void AGASPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Clear the interaction timer
+	GetWorldTimerManager().ClearTimer(TimerHandle_Interaction);
+
 	// Unbind all delegates when the character is destroyed to prevent memory leaks.
 	if (AbilitySystemComponent.IsValid())
 	{
@@ -110,6 +133,58 @@ void AGASPlayerCharacter::OnReserveAmmoAttributeChanged_Listen(const FOnAttribut
 void AGASPlayerCharacter::OnMovementSpeedAttributeChanged_Listen(const FOnAttributeChangeData& Data)
 {
 	GetCharacterMovement()->MaxWalkSpeed = Data.NewValue;
+}
+
+void AGASPlayerCharacter::ClearInteractionFocus()
+{
+	Server_SetFocusedActor(nullptr);
+}
+
+void AGASPlayerCharacter::UpdateInteractionFocus()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+
+	AActor* LastFocused = FocusedActor.Get();
+	AActor* CurrentlyFocused = nullptr;
+
+	FVector Start;
+	FRotator Rot;
+	GetController()->GetPlayerViewPoint(Start, Rot);
+	FVector End = Start + Rot.Vector() * 500.0f; // 5 meter trace distance
+
+	FHitResult HitResult;
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(this);
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, CollisionParams))
+	{
+		if (HitResult.GetActor() && HitResult.GetActor()->GetClass()->ImplementsInterface(UInteractionSource::StaticClass()))
+		{
+			CurrentlyFocused = HitResult.GetActor();
+		}
+	}
+
+	if (LastFocused != CurrentlyFocused)
+	{
+		Server_SetFocusedActor(CurrentlyFocused);
+
+		FInteractionPrompt Prompt;
+		if (CurrentlyFocused)
+		{
+			Prompt = IInteractionSource::Execute_GetInteractionPrompt(CurrentlyFocused);
+		}
+		OnFocusChanged.Broadcast(Prompt);
+	}
+}
+
+void AGASPlayerCharacter::Server_SetFocusedActor_Implementation(AActor* NewFocusedActor)
+{
+	// This now runs on the server.
+	// A more robust implementation would validate that the client is actually close enough to this actor.
+	FocusedActor = NewFocusedActor;
 }
 
 // --- Helper Function ---

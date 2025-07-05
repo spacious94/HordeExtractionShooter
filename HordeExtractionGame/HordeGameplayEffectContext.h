@@ -11,6 +11,10 @@ struct FHordeGameplayEffectContext : public FGameplayEffectContext
 {
     GENERATED_BODY()
 
+    // By using a TSharedPtr, we no longer have to manage the memory of the FHitResult manually.
+    // It will be automatically created when needed and destroyed when no longer referenced.
+    TSharedPtr<FHitResult> HitResult;
+
 public:
     // This is the important part!
     // We override this function to support replicating the HitResult.

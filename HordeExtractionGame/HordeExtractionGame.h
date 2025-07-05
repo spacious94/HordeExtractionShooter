@@ -3,3 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+// Declare our custom log category so it can be used in other files
+DECLARE_LOG_CATEGORY_EXTERN(LogInventoryUI, Log, All);

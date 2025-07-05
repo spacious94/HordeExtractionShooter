@@ -8,7 +8,7 @@ public class HordeExtractionGame : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "GameplayAbilities", "GameplayTags", "GameplayTasks", "EnhancedInput", "NetCore", "CommonUI" });
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "GameplayAbilities", "GameplayTags", "GameplayTasks", "EnhancedInput", "NetCore", "CommonUI", "Slate", "SlateCore", "UMG" });
 
         PrivateDependencyModuleNames.AddRange(new string[] {  });
 
