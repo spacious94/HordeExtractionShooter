@@ -10,16 +10,13 @@
 
 FInventoryDragDropOp::~FInventoryDragDropOp()
 {
-	// If the drop was not handled by any widget, it's considered cancelled.
-	if (!bWasDropHandled)
+	if (!bDropSucceeded)
 	{
-		// If the source item widget is still valid, make it visible again. This preserves the fix for the window-close crash.
-		if (SourceItem.IsValid())
+		if (TSharedPtr<SInventoryItem> SourceItemPtr = SourceItem.Pin())
 		{
-			SourceItem.Pin()->SetVisibility(EVisibility::Visible);
+			SourceItemPtr->SetVisibility(EVisibility::Visible);
 		}
 	}
-	// If the drop WAS handled, we do nothing. The source widget will be destroyed by the inventory grid refresh.
 }
 
 TSharedRef<FInventoryDragDropOp> FInventoryDragDropOp::New(const FGuid& InItemID, const FPrimaryAssetId& InStaticDataID, UInventoryViewModel* InViewModel, TSharedPtr<SWidget> InDecorator, FVector2D InDecoratorOffset, TSharedPtr<SInventoryItem> InSourceItem)
@@ -39,13 +36,13 @@ TSharedRef<FInventoryDragDropOp> FInventoryDragDropOp::New(const FGuid& InItemID
 
 void FInventoryDragDropOp::OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent)
 {
-	// This is the key change. We store the result of the drop.
-	bWasDropHandled = bDropWasHandled;
-
-	// If the drop was not handled by any widget, we can assume the player wants to drop it into the world.
-	if (!bWasDropHandled && ViewModel.IsValid())
+	// If the drop was not handled by any widget, and our success flag has not been set,
+	// then this is a "drop in world" event.
+	if (!bDropWasHandled && !bDropSucceeded && ViewModel.IsValid())
 	{
 		ViewModel->RequestDropItem(ItemID);
+		// A world drop is a successful outcome, so we set the flag.
+		bDropSucceeded = true; 
 	}
 
 	// The base class OnDrop is what calls the destructor, so we call it last.

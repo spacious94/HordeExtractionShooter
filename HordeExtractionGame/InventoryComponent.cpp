@@ -191,9 +191,21 @@ void UInventoryComponent::RemoveItemByID(const FGuid& ItemID)
 {
 	if (GetOwner()->HasAuthority())
 	{
-		InventoryList.Items.RemoveAll([&ItemID](const FItemEntry& Item) { return Item.UniqueID == ItemID; });
-		InventoryList.MarkArrayDirty();
-		OnItemRemoved.Broadcast(ItemID); // Manually broadcast for server
+		for (FItemEntry& Item : InventoryList.Items)
+		{
+			if (Item.UniqueID == ItemID)
+			{
+				Item.bPendingRemoval = true;
+				InventoryList.MarkItemDirty(Item);
+
+				// Manually broadcast for the server/host, as replication callbacks won't fire.
+				if (GetOwner()->GetNetMode() == ENetMode::NM_ListenServer || GetOwner()->GetNetMode() == ENetMode::NM_Standalone)
+				{
+					OnItemChanged.Broadcast(Item);
+				}
+				return;
+			}
+		}
 	}
 }
 
@@ -318,6 +330,12 @@ void UInventoryComponent::Server_DropItem_Implementation(const FGuid& ItemID)
 {
 	if (GetOwner()->HasAuthority())
 	{
+		// Perform garbage collection before dropping the item.
+		InventoryList.Items.RemoveAll([](const FItemEntry& Item) {
+			return Item.bPendingRemoval;
+		});
+		InventoryList.MarkArrayDirty();
+
 		AGASPlayerState* PlayerState = GetOwner<AGASPlayerState>();
 		if (!PlayerState) return;
 

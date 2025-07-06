@@ -62,6 +62,12 @@ void UEquipmentComponent::Server_EquipItem_Implementation(EEquipmentSlot Slot, c
 		return;
 	}
 
+	// Perform garbage collection before equipping the new item.
+	InventoryComp->InventoryList.Items.RemoveAll([](const FItemEntry& Item) {
+		return Item.bPendingRemoval;
+	});
+	InventoryComp->InventoryList.MarkArrayDirty();
+
 	const FItemInstance* ItemInstanceToEquip = DatabaseComp->GetItemInstance(ItemID);
 
 	if (ItemInstanceToEquip)
@@ -112,9 +118,12 @@ void UEquipmentComponent::Server_UnequipItem_Implementation(EEquipmentSlot Slot)
 			EquippedList.Items.RemoveAt(FoundIndex);
 			EquippedList.MarkArrayDirty();
 			
-			// We need to get the stack size and durability from somewhere.
-			// For now, we'll assume 1 and 100. This data should also be added to FItemInstance.
-			InventoryComp->AddItem(ItemToUnequip_Instance.StaticDataID, 1, 100);
+			// Create a lightweight FItemEntry from our heavyweight FItemInstance
+			FItemEntry EntryToReadd;
+			EntryToReadd.UniqueID = ItemToUnequip_Instance.InstanceID;
+			EntryToReadd.StaticDataID = ItemToUnequip_Instance.StaticDataID;
+			// NOTE: StackSize and Durability should be part of FItemInstance
+			InventoryComp->AddItemFromEntry(EntryToReadd, 1, 100);
 
 			HandleUnequip(Slot, ItemToUnequip_Instance);
 			OnEquipmentChanged.Broadcast(Slot, FItemInstance()); // Broadcast empty instance on unequip

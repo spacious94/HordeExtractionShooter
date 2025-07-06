@@ -134,22 +134,28 @@ FReply SInventoryGrid::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 		return FReply::Unhandled();
 	}
 
-	if (Op->ViewModel.IsValid())
-	{
-		// Calculate the drop position based on the decorator, not the mouse
-		const FVector2D DecoratorScreenPosition = DragDropEvent.GetScreenSpacePosition() + Op->DecoratorOffset;
-		const FIntPoint Cell = ScreenToGrid(MyGeometry, DecoratorScreenPosition);
-		
-		Op->ViewModel->MoveInventoryItem(Op->ItemID, Cell.X, Cell.Y);
-	}
-
 	bIsDragInProgress = false;
 	if (IndicatorCanvas.IsValid())
 	{
 		IndicatorCanvas->ClearChildren();
 	}
 
-	return FReply::Handled();
+	if (Op->ViewModel.IsValid())
+	{
+		const FVector2D DecoratorScreenPosition = DragDropEvent.GetScreenSpacePosition() + Op->DecoratorOffset;
+		const FIntPoint Cell = ScreenToGrid(MyGeometry, DecoratorScreenPosition);
+		
+		FIntPoint ItemSize = UHordeFunctionLibrary::GetItemSize(Op->StaticDataID);
+
+		if (ViewModel->IsInventorySpaceAvailable(Cell, ItemSize, Op->ItemID))
+		{
+			ViewModel->MoveInventoryItem(Op->ItemID, Cell.X, Cell.Y);
+			Op->bDropSucceeded = true;
+			return FReply::Handled();
+		}
+	}
+
+	return FReply::Unhandled();
 }
 
 void SInventoryGrid::SetViewModel(UInventoryViewModel* InModel)

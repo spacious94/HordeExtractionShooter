@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "ItemTypes.h"
+#include "Blueprint/DragDropOperation.h"
 #include "Net/Serialization/FastArraySerializer.h"
 #include "ItemDatabaseComponent.generated.h"
 
@@ -18,6 +19,9 @@ struct FReplicatedItemInstance : public FFastArraySerializerItem
 	GENERATED_BODY()
 
 public:
+	UPROPERTY()                         
+	FGuid InstanceID;
+
 	UPROPERTY()
 	FItemInstance Item;
 

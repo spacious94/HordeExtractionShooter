@@ -16,12 +16,12 @@ TSharedRef<SWidget> UInventoryGridWidget::RebuildWidget()
 	if (ViewModel)
 	{
 		UE_LOG(LogInventoryUI, Log,
-			TEXT("RebuildWidget: ViewModel=%s ï¿½ built live SInventoryGrid"),
+			TEXT("RebuildWidget: ViewModel=%s — built live SInventoryGrid"),
 			*GetNameSafe(ViewModel));
 	}
 	else
 	{
-		UE_LOG(LogInventoryUI, Log,
+		UE_LOG(LogInventoryUI, Warning,
 			TEXT("RebuildWidget: ViewModel is NULL at first construction. "
 				"Grid will refresh after AssignViewModel is called."));
 	}

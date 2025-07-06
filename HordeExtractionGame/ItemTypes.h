@@ -74,4 +74,15 @@ struct FItemInstance
 	{
 		InstanceID = FGuid::NewGuid();
 	}
+
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+};
+
+template<>
+struct TStructOpsTypeTraits<FItemInstance> : public TStructOpsTypeTraitsBase2<FItemInstance>
+{
+	enum
+	{
+		WithNetSerializer = true,
+	};
 };

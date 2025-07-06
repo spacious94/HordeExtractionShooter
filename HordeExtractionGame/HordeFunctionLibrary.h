@@ -7,7 +7,9 @@
 #include "ItemTypes.h"
 #include "HordeFunctionLibrary.generated.h"
 
-class UAbilitySystemComponent; // Forward Declaration
+class UAbilitySystemComponent;
+class UDragDropOperation;
+class UInventoryViewModel;
 
 UINTERFACE(MinimalAPI, Blueprintable)
 class UPickupInitializationInterface : public UInterface
@@ -42,4 +44,17 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "AbilitySystem")
 	static void InitializeAbilitySystem(UAbilitySystemComponent* ASC, AActor* OwnerActor, AActor* AvatarActor);
+
+	/**
+	 * Safely gets the payload from an FInventoryDragDropOp.
+	 * @param Operation The Drag and Drop operation from a UMG OnDrop event.
+	 * @param OutViewModel The ViewModel associated with the drag operation.
+	 * @param OutItemID The unique ID of the item being dragged.
+	 * @return True if the operation was a valid FInventoryDragDropOp and the payload was extracted.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "UI | Drag and Drop", meta = (DeterminesOutputType = "Operation"))
+	static bool GetInventoryDragDropPayload(UDragDropOperation* Operation, UInventoryViewModel*& OutViewModel, FGuid& OutItemID);
+
+	UFUNCTION(BlueprintCallable, Category = "UI | Drag and Drop")
+	static void SetDragDropSucceeded(UDragDropOperation* Operation, bool bSucceeded);
 };

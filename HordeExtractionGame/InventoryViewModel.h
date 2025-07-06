@@ -28,6 +28,8 @@ public:
 	TArray<FItemEntry> GetInventoryItems() const;
 	void MoveInventoryItem(const FGuid& ItemID, int32 NewX, int32 NewY);
 	bool IsInventorySpaceAvailable(FIntPoint TopLeft, FIntPoint Size, const FGuid& IgnoreItemID) const;
+
+	UFUNCTION(BlueprintCallable, Category = "ViewModel | Inventory")
 	void RequestDropItem(const FGuid& ItemID);
 
 	// --- Equipment Functions ---

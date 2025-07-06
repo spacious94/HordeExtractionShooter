@@ -27,6 +27,10 @@ public:
 	// This is the key function that will handle the drop logic in C++.
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 
+	// --- Drag/Drop Source Overrides ---
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+
 	void RefreshSlot(EEquipmentSlot Slot, const FItemInstance& Item);
 
 	void SetViewModel(UInventoryViewModel* InViewModel);

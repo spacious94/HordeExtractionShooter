@@ -26,6 +26,8 @@ public:
 
 	TWeakPtr<SInventoryItem> SourceItem;
 
+	bool bDropSucceeded = false;
+
 	static TSharedRef<FInventoryDragDropOp> New(const FGuid& InItemID, const FPrimaryAssetId& InStaticDataID, UInventoryViewModel* InViewModel, TSharedPtr<SWidget> InDecorator, FVector2D InDecoratorOffset, TSharedPtr<SInventoryItem> InSourceItem);
 
 	virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent) override;

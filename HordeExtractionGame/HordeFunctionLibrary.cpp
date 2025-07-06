@@ -5,7 +5,10 @@
 #include "Engine/PrimaryAssetLabel.h"
 #include "UObject/UnrealType.h"
 #include "GameFramework/Actor.h"
-#include "AbilitySystemComponent.h" // Added for the new function
+#include "AbilitySystemComponent.h"
+#include "DragDropOps.h"
+#include "Blueprint/DragDropOperation.h"
+#include "InventoryViewModel.h"
 
 FIntPoint UHordeFunctionLibrary::GetItemSize(const FPrimaryAssetId& ItemStaticID)
 {
@@ -38,5 +41,33 @@ void UHordeFunctionLibrary::InitializeAbilitySystem(UAbilitySystemComponent* ASC
 	if (ASC)
 	{
 		ASC->InitAbilityActorInfo(OwnerActor, AvatarActor);
+	}
+}
+
+bool UHordeFunctionLibrary::GetInventoryDragDropPayload(UDragDropOperation* Operation, UInventoryViewModel*& OutViewModel, FGuid& OutItemID)
+{
+	if (Operation && Operation->Payload)
+	{
+		if (const FInventoryDragDropOp* InventoryOp = static_cast<const FInventoryDragDropOp*>(Operation->Payload))
+		{
+			if (InventoryOp->ViewModel.IsValid())
+			{
+				OutViewModel = InventoryOp->ViewModel.Get();
+				OutItemID = InventoryOp->ItemID;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void UHordeFunctionLibrary::SetDragDropSucceeded(UDragDropOperation* Operation, bool bSucceeded)
+{
+	if (Operation && Operation->Payload)
+	{
+		if (FInventoryDragDropOp* InventoryOp = static_cast<FInventoryDragDropOp*>(Operation->Payload))
+		{
+			InventoryOp->bDropSucceeded = bSucceeded;
+		}
 	}
 }
