@@ -8,8 +8,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "InteractionSource.h" // Added for the interaction interface
-#include "Camera/CameraComponent.h" // Added for camera access
+#include "InteractionSource.h"
+#include "Camera/CameraComponent.h"
 #include "Net/UnrealNetwork.h"
 
 AGASPlayerCharacter::AGASPlayerCharacter()
@@ -137,7 +137,28 @@ void AGASPlayerCharacter::OnMovementSpeedAttributeChanged_Listen(const FOnAttrib
 
 void AGASPlayerCharacter::ClearInteractionFocus()
 {
-	Server_SetFocusedActor(nullptr);
+	// This function can now be safely called on any client.
+	FocusedActor = nullptr;
+	OnFocusChanged.Broadcast(FInteractionPrompt());
+
+	// If we are the local player, we must also tell the server we cleared our focus.
+	if (IsLocallyControlled())
+	{
+		Server_SetFocusedActor(nullptr);
+	}
+}
+
+void AGASPlayerCharacter::Client_ClearInteractionFocus_Implementation()
+{
+	// This is a command from the server. We just call our local clear function.
+	ClearInteractionFocus();
+}
+
+void AGASPlayerCharacter::RequestClientClearFocus()
+{
+	// This function is called from a Blueprint on the server instance of this character.
+	// It then calls the Client RPC to execute on the corresponding client machine.
+	Client_ClearInteractionFocus();
 }
 
 void AGASPlayerCharacter::UpdateInteractionFocus()
@@ -170,6 +191,8 @@ void AGASPlayerCharacter::UpdateInteractionFocus()
 	if (LastFocused != CurrentlyFocused)
 	{
 		Server_SetFocusedActor(CurrentlyFocused);
+		// Update the local value immediately for responsiveness.
+		FocusedActor = CurrentlyFocused;
 
 		FInteractionPrompt Prompt;
 		if (CurrentlyFocused)

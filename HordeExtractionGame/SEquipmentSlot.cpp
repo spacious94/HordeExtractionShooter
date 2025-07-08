@@ -5,6 +5,9 @@
 #include "InventoryViewModel.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
+#include "HordeFunctionLibrary.h"
+#include "Engine/AssetManager.h"   // <-- ADDED for validation
+#include "BaseItemDataAsset.h"     // <-- ADDED for validation
 
 #include "HordeExtractionGame.h" // For LogInventoryUI
 
@@ -20,14 +23,14 @@ void SEquipmentSlot::Construct(const FArguments& InArgs)
 	}
 
 	ChildSlot
-	[
-		SNew(SBox)
-		.WidthOverride(TileSize)
-		.HeightOverride(TileSize)
 		[
-			SAssignNew(ItemIcon, SImage)
-		]
-	];
+			SNew(SBox)
+				.WidthOverride(TileSize)
+				.HeightOverride(TileSize)
+				[
+					SAssignNew(ItemIcon, SImage)
+				]
+		];
 
 	// Initial update
 	FItemInstance InitialItem;
@@ -41,20 +44,40 @@ void SEquipmentSlot::Construct(const FArguments& InArgs)
 FReply SEquipmentSlot::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
 	TSharedPtr<FInventoryDragDropOp> Op = DragDropEvent.GetOperationAs<FInventoryDragDropOp>();
-	if (Op.IsValid())
+	if (Op.IsValid() && ViewModel)
 	{
-		UE_LOG(LogInventoryUI, Log, TEXT("SEquipmentSlot::OnDrop - SUCCESS, DragOp is valid."));
-		if (ViewModel)
+		bool bPassesValidation = false;
+
+		// --- C++ VALIDATION LOGIC ---
+		if (UAssetManager* AssetManager = UAssetManager::GetIfInitialized())
 		{
-			// TODO: Add validation logic here to check if the item is valid for this slot.
+			// Get the item's static data from the Asset Manager
+			if (UBaseItemDataAsset* ItemData = Cast<UBaseItemDataAsset>(AssetManager->GetPrimaryAssetObject(Op->StaticDataID)))
+			{
+				// If the ValidSlots array is empty, we treat it as a wildcard (allowed in any slot).
+				// Otherwise, we check if the array contains the slot type of this widget.
+				if (ItemData->ValidSlots.Num() == 0 || ItemData->ValidSlots.Contains(SlotType))
+				{
+					bPassesValidation = true;
+				}
+			}
+		}
+
+		if (bPassesValidation)
+		{
+			// Validation passed, request the equip.
 			ViewModel->RequestEquipItem(SlotType, Op->ItemID);
 			Op->bDropSucceeded = true;
 		}
+		// If validation fails, we do nothing. The drop is still "handled" to prevent
+		// a world drop, and the item will snap back because bDropSucceeded is false.
+
 		return FReply::Handled();
 	}
-	UE_LOG(LogInventoryUI, Warning, TEXT("SEquipmentSlot::OnDrop - FAILED, DragOp was not FInventoryDragDropOp."));
+
 	return FReply::Unhandled();
 }
+
 
 void SEquipmentSlot::SetViewModel(UInventoryViewModel* InViewModel)
 {
@@ -98,7 +121,6 @@ FReply SEquipmentSlot::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoi
 {
 	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
 	{
-		// Check if there's actually an item in this slot to drag
 		FItemInstance ItemInSlot;
 		if (ViewModel && ViewModel->GetEquippedItemForSlot(SlotType, ItemInSlot))
 		{
@@ -122,34 +144,30 @@ FReply SEquipmentSlot::OnDragDetected(const FGeometry& MyGeometry, const FPointe
 		Brush = Cache->GetBrush(ItemInSlot.StaticDataID).Get();
 	}
 
-	// Create the decorator widget
+	const FIntPoint ItemSize = UHordeFunctionLibrary::GetItemSize(ItemInSlot.StaticDataID);
+	const FVector2D WidgetSize = FVector2D(ItemSize.X * TileSize, ItemSize.Y * TileSize);
+
 	TSharedRef<SWidget> Decorator = SNew(SBox)
-		.WidthOverride(TileSize)
-		.HeightOverride(TileSize)
+		.WidthOverride(WidgetSize.X)
+		.HeightOverride(WidgetSize.Y)
 		[
 			SNew(SImage)
-			.Image(Brush) // Use the brush we just fetched
-			.ColorAndOpacity(FLinearColor(1, 1, 1, 0.75f))
+				.Image(Brush)
+				.ColorAndOpacity(FLinearColor(1, 1, 1, 0.75f))
 		];
 
-	// Get the mouse position in the local space of the widget being dragged.
 	const FVector2D LocalMousePosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 	const FVector2D NewOffset = -LocalMousePosition;
 
-	// Immediately request to unequip the item from the model.
-	// The UI will update automatically via the OnEquipmentChanged delegate.
-	ViewModel->RequestUnequipItem(SlotType);
-
-	// Create the drag operation
 	TSharedRef<FInventoryDragDropOp> Op = FInventoryDragDropOp::New(
 		ItemInSlot.InstanceID,
 		ItemInSlot.StaticDataID,
 		ViewModel,
+		SlotType,
 		Decorator,
 		NewOffset,
-		nullptr // We don't need a source item widget for equipment slots
+		nullptr
 	);
 
 	return FReply::Handled().BeginDragDrop(Op);
 }
-

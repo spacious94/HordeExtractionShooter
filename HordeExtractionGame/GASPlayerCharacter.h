@@ -70,6 +70,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void ClearInteractionFocus();
 
+	/** A function the server can call to force-clear this client's UI. */
+	UFUNCTION(Client, Reliable)
+	void Client_ClearInteractionFocus();
+
+	/** A Blueprint-callable function that the server can execute to tell this character's client to clear its focus. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void RequestClientClearFocus();
+
 
 protected:
 	// -- Pointers & Handles --

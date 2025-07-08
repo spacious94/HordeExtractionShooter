@@ -3,7 +3,23 @@
 #include "InventoryViewModel.h"
 #include "InventoryComponent.h"
 #include "EquipmentComponent.h"
+#include "ItemDatabaseComponent.h"
+#include "GASPlayerState.h"
 #include "HordeExtractionGame.h"
+
+// --- Private Helper Function ---
+UItemDatabaseComponent* UInventoryViewModel::GetDatabase() const
+{
+	if (InventoryComponent)
+	{
+		if (AGASPlayerState* PS = InventoryComponent->GetOwner<AGASPlayerState>())
+		{
+			return PS->GetItemDatabaseComponent();
+		}
+	}
+	return nullptr;
+}
+
 
 void UInventoryViewModel::Initialize(UInventoryComponent* InInventoryComponent, UEquipmentComponent* InEquipmentComponent)
 {
@@ -25,7 +41,7 @@ void UInventoryViewModel::Initialize(UInventoryComponent* InInventoryComponent, 
 		EquipmentComponent = InEquipmentComponent;
 		EquipmentComponent->OnEquipmentChanged.AddDynamic(this, &UInventoryViewModel::HandleEquipmentChanged);
 	}
-	
+
 	bIsInitialized = true;
 	UE_LOG(LogInventoryUI, Log, TEXT("ViewModel Initialized and bound to Inventory and Equipment Components."));
 }
@@ -35,11 +51,10 @@ TArray<FItemEntry> UInventoryViewModel::GetInventoryItems() const
 	if (InventoryComponent)
 	{
 		TArray<FItemEntry> AllItems = InventoryComponent->GetAllItems();
-		// Filter out items that are pending removal so the UI doesn't draw them.
 		return AllItems.FilterByPredicate([](const FItemEntry& Item)
-		{
-			return !Item.bPendingRemoval;
-		});
+			{
+				return !Item.bPendingRemoval;
+			});
 	}
 	return TArray<FItemEntry>();
 }
@@ -61,12 +76,36 @@ bool UInventoryViewModel::IsInventorySpaceAvailable(FIntPoint TopLeft, FIntPoint
 	return false;
 }
 
-void UInventoryViewModel::RequestDropItem(const FGuid& ItemID)
+void UInventoryViewModel::RequestDropItem(const FGuid& ItemID, EEquipmentSlot SourceSlot)
 {
-	if (InventoryComponent)
+	if (SourceSlot != EEquipmentSlot::None)
 	{
-		InventoryComponent->Server_DropItem(ItemID);
+		if (EquipmentComponent)
+		{
+			EquipmentComponent->DropEquippedItem(SourceSlot);
+		}
 	}
+	else
+	{
+		if (InventoryComponent)
+		{
+			InventoryComponent->Server_DropItem(ItemID);
+		}
+	}
+}
+
+// --- NEW: Implementation for our helper function ---
+bool UInventoryViewModel::GetItemInstanceByID(const FGuid& ItemID, FItemInstance& OutItem) const
+{
+	if (UItemDatabaseComponent* DB = GetDatabase())
+	{
+		if (const FItemInstance* ItemPtr = DB->GetClientItemInstance(ItemID))
+		{
+			OutItem = *ItemPtr;
+			return true;
+		}
+	}
+	return false;
 }
 
 void UInventoryViewModel::RequestEquipItem(EEquipmentSlot Slot, const FGuid& ItemID)
@@ -110,5 +149,3 @@ void UInventoryViewModel::HandleEquipmentChanged(EEquipmentSlot Slot, const FIte
 {
 	OnEquipmentChanged.Broadcast(Slot, ItemInstance);
 }
-
-

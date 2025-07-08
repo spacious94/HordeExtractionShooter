@@ -19,12 +19,12 @@ void SInventoryItem::Construct(const FArguments& InArgs)
 	ChildSlot
 		[
 			SNew(SBox)
-			.WidthOverride(TileSize)
-			.HeightOverride(TileSize)
-			[
-				SNew(SImage)
-				.Image(this, &SInventoryItem::GetItemIcon)
-			]
+				.WidthOverride(TileSize)
+				.HeightOverride(TileSize)
+				[
+					SNew(SImage)
+						.Image(this, &SInventoryItem::GetItemIcon)
+				]
 		];
 }
 
@@ -44,36 +44,32 @@ FReply SInventoryItem::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoi
 
 FReply SInventoryItem::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	// Hide the source item widget
 	SetVisibility(EVisibility::Collapsed);
 
 	FIntPoint ItemSize = UHordeFunctionLibrary::GetItemSize(Item.StaticDataID);
 	FVector2D WidgetSize = FVector2D(ItemSize.X * TileSize, ItemSize.Y * TileSize);
 
-	// Create the decorator widget
 	TSharedRef<SWidget> Decorator = SNew(SBox)
 		.WidthOverride(WidgetSize.X)
 		.HeightOverride(WidgetSize.Y)
 		[
 			SNew(SImage)
-			.Image(GetItemIcon())
-			.ColorAndOpacity(FLinearColor(1, 1, 1, 0.75f))
+				.Image(GetItemIcon())
+				.ColorAndOpacity(FLinearColor(1, 1, 1, 0.75f))
 		];
 
-	// Get the mouse position in the local space of the widget being dragged.
 	const FVector2D LocalMousePosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
-
-	// The offset is the negative of this local position.
 	const FVector2D NewOffset = -LocalMousePosition;
 
-	// Create the drag operation
+	// --- MODIFIED: Update the factory function call ---
 	TSharedRef<FInventoryDragDropOp> Op = FInventoryDragDropOp::New(
 		Item.UniqueID,
 		Item.StaticDataID,
 		ViewModel,
+		EEquipmentSlot::None, // This drag did NOT come from an equipment slot.
 		Decorator,
-		NewOffset, // Use the new, click-relative offset
-		SharedThis(this) // Pass a pointer to this widget
+		NewOffset,
+		SharedThis(this)
 	);
 
 	return FReply::Handled().BeginDragDrop(Op);

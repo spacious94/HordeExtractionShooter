@@ -28,8 +28,8 @@ void SInventoryGrid::Construct(const FArguments& InArgs)
 			GridPanel->AddSlot(X, Y)
 				[
 					SNew(SBox)
-					.WidthOverride(TileSize)
-					.HeightOverride(TileSize)
+						.WidthOverride(TileSize)
+						.HeightOverride(TileSize)
 				];
 		}
 	}
@@ -42,14 +42,14 @@ void SInventoryGrid::Construct(const FArguments& InArgs)
 	ChildSlot
 		[
 			SNew(SOverlay)
-			+ SOverlay::Slot()
-			[
-				GridPanel.ToSharedRef()
-			]
-			+ SOverlay::Slot()
-			[
-				SAssignNew(IndicatorCanvas, SCanvas)
-			]
+				+ SOverlay::Slot()
+				[
+					GridPanel.ToSharedRef()
+				]
+				+ SOverlay::Slot()
+				[
+					SAssignNew(IndicatorCanvas, SCanvas)
+				]
 		];
 
 	RefreshGrid();
@@ -100,10 +100,7 @@ FReply SInventoryGrid::OnDragOver(const FGeometry& MyGeometry, const FDragDropEv
 		const TSharedPtr<FInventoryDragDropOp> Op = DragDropEvent.GetOperationAs<FInventoryDragDropOp>();
 		if (!Op.IsValid()) return FReply::Unhandled();
 
-		// Calculate the top-left of the decorator widget in screen space
 		const FVector2D DecoratorScreenPosition = DragDropEvent.GetScreenSpacePosition() + Op->DecoratorOffset;
-		
-		// Convert that screen position to a grid cell
 		const FIntPoint Cell = ScreenToGrid(MyGeometry, DecoratorScreenPosition);
 
 		const bool bIsSpaceAvailable = ViewModel->IsInventorySpaceAvailable(Cell, DraggedItemSize, DraggedItemID);
@@ -118,7 +115,7 @@ FReply SInventoryGrid::OnDragOver(const FGeometry& MyGeometry, const FDragDropEv
 					.Size(FVector2D(TileSize, TileSize))
 					[
 						SNew(SColorBlock)
-						.Color(IndicatorColor)
+							.Color(IndicatorColor)
 					];
 			}
 		}
@@ -129,7 +126,7 @@ FReply SInventoryGrid::OnDragOver(const FGeometry& MyGeometry, const FDragDropEv
 FReply SInventoryGrid::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
 	const TSharedPtr<FInventoryDragDropOp> Op = DragDropEvent.GetOperationAs<FInventoryDragDropOp>();
-	if (!Op.IsValid())
+	if (!Op.IsValid() || !Op->ViewModel.IsValid())
 	{
 		return FReply::Unhandled();
 	}
@@ -140,22 +137,31 @@ FReply SInventoryGrid::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent&
 		IndicatorCanvas->ClearChildren();
 	}
 
-	if (Op->ViewModel.IsValid())
+	if (Op->SourceSlot != EEquipmentSlot::None)
+	{
+		ViewModel->RequestUnequipItem(Op->SourceSlot);
+		Op->bDropSucceeded = true;
+		return FReply::Handled();
+	}
+	else
 	{
 		const FVector2D DecoratorScreenPosition = DragDropEvent.GetScreenSpacePosition() + Op->DecoratorOffset;
 		const FIntPoint Cell = ScreenToGrid(MyGeometry, DecoratorScreenPosition);
-		
-		FIntPoint ItemSize = UHordeFunctionLibrary::GetItemSize(Op->StaticDataID);
+		const FIntPoint ItemSize = UHordeFunctionLibrary::GetItemSize(Op->StaticDataID);
 
 		if (ViewModel->IsInventorySpaceAvailable(Cell, ItemSize, Op->ItemID))
 		{
+			// Space is available, perform the move.
 			ViewModel->MoveInventoryItem(Op->ItemID, Cell.X, Cell.Y);
 			Op->bDropSucceeded = true;
-			return FReply::Handled();
 		}
-	}
 
-	return FReply::Unhandled();
+		// --- MODIFIED: We now ALWAYS handle the drop. ---
+		// If space was not available, bDropSucceeded remains false, and the item
+		// will be returned to its original slot by the drag operation's destructor.
+		// By returning Handled() here, we prevent the "drop in world" fallback.
+		return FReply::Handled();
+	}
 }
 
 void SInventoryGrid::SetViewModel(UInventoryViewModel* InModel)
@@ -188,8 +194,8 @@ void SInventoryGrid::RefreshGrid()
 			GridPanel->AddSlot(X, Y)
 				[
 					SNew(SBox)
-					.WidthOverride(TileSize)
-					.HeightOverride(TileSize)
+						.WidthOverride(TileSize)
+						.HeightOverride(TileSize)
 				];
 		}
 	}
@@ -203,9 +209,9 @@ void SInventoryGrid::RefreshGrid()
 			.RowSpan(ItemSize.Y)
 			[
 				SNew(SInventoryItem)
-				.ItemEntry(It)
-				.ViewModel(ViewModel)
-				.TileSize(TileSize)
+					.ItemEntry(It)
+					.ViewModel(ViewModel)
+					.TileSize(TileSize)
 			];
 	}
 }

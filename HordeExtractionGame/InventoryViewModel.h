@@ -30,12 +30,16 @@ public:
 	bool IsInventorySpaceAvailable(FIntPoint TopLeft, FIntPoint Size, const FGuid& IgnoreItemID) const;
 
 	UFUNCTION(BlueprintCallable, Category = "ViewModel | Inventory")
-	void RequestDropItem(const FGuid& ItemID);
+	void RequestDropItem(const FGuid& ItemID, EEquipmentSlot SourceSlot);
+
+	// --- NEW: A helper to get the full item instance from its ID. ---
+	UFUNCTION(BlueprintPure, Category = "ViewModel")
+	bool GetItemInstanceByID(const FGuid& ItemID, FItemInstance& OutItem) const;
 
 	// --- Equipment Functions ---
 	UFUNCTION(BlueprintCallable, Category = "ViewModel | Equipment")
 	void RequestEquipItem(EEquipmentSlot Slot, const FGuid& ItemID);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "ViewModel | Equipment")
 	void RequestUnequipItem(EEquipmentSlot Slot);
 
@@ -55,6 +59,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UEquipmentComponent> EquipmentComponent;
+
+	// Forward declare to use in the .cpp file
+	class UItemDatabaseComponent* GetDatabase() const;
 
 	// Handlers for component data changes
 	UFUNCTION()

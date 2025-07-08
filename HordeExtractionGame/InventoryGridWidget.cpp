@@ -21,7 +21,7 @@ TSharedRef<SWidget> UInventoryGridWidget::RebuildWidget()
 	}
 	else
 	{
-		UE_LOG(LogInventoryUI, Warning,
+		UE_LOG(LogInventoryUI, Log,
 			TEXT("RebuildWidget: ViewModel is NULL at first construction. "
 				"Grid will refresh after AssignViewModel is called."));
 	}

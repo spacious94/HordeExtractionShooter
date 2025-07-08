@@ -4,6 +4,10 @@
 #include "InventoryComponent.h"
 #include "ItemDatabaseComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "BaseItemDataAsset.h"
+#include "Engine/AssetManager.h"
+#include "GameFramework/Pawn.h"
+#include "HordeFunctionLibrary.h"
 
 #include "HordeExtractionGame.h" // For LogInventoryUI
 
@@ -35,6 +39,11 @@ void UEquipmentComponent::UnequipItem(EEquipmentSlot Slot)
 	Server_UnequipItem(Slot);
 }
 
+void UEquipmentComponent::DropEquippedItem(EEquipmentSlot Slot)
+{
+	Server_DropEquippedItem(Slot);
+}
+
 bool UEquipmentComponent::GetEquippedItem(EEquipmentSlot Slot, FItemInstance& OutItem) const
 {
 	for (const FEquippedItem& EquippedItem : EquippedList.Items)
@@ -62,10 +71,9 @@ void UEquipmentComponent::Server_EquipItem_Implementation(EEquipmentSlot Slot, c
 		return;
 	}
 
-	// Perform garbage collection before equipping the new item.
 	InventoryComp->InventoryList.Items.RemoveAll([](const FItemEntry& Item) {
 		return Item.bPendingRemoval;
-	});
+		});
 	InventoryComp->InventoryList.MarkArrayDirty();
 
 	const FItemInstance* ItemInstanceToEquip = DatabaseComp->GetItemInstance(ItemID);
@@ -73,16 +81,14 @@ void UEquipmentComponent::Server_EquipItem_Implementation(EEquipmentSlot Slot, c
 	if (ItemInstanceToEquip)
 	{
 		UE_LOG(LogInventoryUI, Log, TEXT("Server_EquipItem - SUCCESS, Found item in database. Proceeding with equip."));
-		// Unequip any existing item first.
 		Server_UnequipItem(Slot);
 
-		// Now remove the item from the inventory component.
 		InventoryComp->RemoveItemByID(ItemID);
 
 		FEquippedItem NewEquippedItem;
 		NewEquippedItem.Slot = Slot;
 		NewEquippedItem.Item = *ItemInstanceToEquip;
-		
+
 		EquippedList.Items.Add(NewEquippedItem);
 		EquippedList.MarkItemDirty(EquippedList.Items.Last());
 
@@ -105,29 +111,79 @@ void UEquipmentComponent::Server_UnequipItem_Implementation(EEquipmentSlot Slot)
 	if (!InventoryComp || !DatabaseComp) return;
 
 	int32 FoundIndex = EquippedList.Items.IndexOfByPredicate(
-		[&Slot](const FEquippedItem& Item){ return Item.Slot == Slot; });
+		[&Slot](const FEquippedItem& Item) { return Item.Slot == Slot; });
 
 	if (FoundIndex != INDEX_NONE)
 	{
 		FItemInstance ItemToUnequip_Instance = EquippedList.Items[FoundIndex].Item;
 
-		// Now we can get the StaticDataID directly from the instance
 		FIntPoint ItemSize = InventoryComp->GetItemSize(ItemToUnequip_Instance.StaticDataID);
 		if (InventoryComp->FindFirstEmptySlotForSize(ItemSize).X != -1)
 		{
 			EquippedList.Items.RemoveAt(FoundIndex);
 			EquippedList.MarkArrayDirty();
-			
-			// Create a lightweight FItemEntry from our heavyweight FItemInstance
+
 			FItemEntry EntryToReadd;
 			EntryToReadd.UniqueID = ItemToUnequip_Instance.InstanceID;
 			EntryToReadd.StaticDataID = ItemToUnequip_Instance.StaticDataID;
-			// NOTE: StackSize and Durability should be part of FItemInstance
 			InventoryComp->AddItemFromEntry(EntryToReadd, 1, 100);
 
 			HandleUnequip(Slot, ItemToUnequip_Instance);
-			OnEquipmentChanged.Broadcast(Slot, FItemInstance()); // Broadcast empty instance on unequip
+			OnEquipmentChanged.Broadcast(Slot, FItemInstance());
 		}
+	}
+}
+
+void UEquipmentComponent::Server_DropEquippedItem_Implementation(EEquipmentSlot Slot)
+{
+	AGASPlayerState* PlayerState = GetOwner<AGASPlayerState>();
+	if (!PlayerState || !PlayerState->HasAuthority()) return;
+
+	const int32 FoundIndex = EquippedList.Items.IndexOfByPredicate(
+		[&Slot](const FEquippedItem& Item) { return Item.Slot == Slot; });
+
+	if (FoundIndex != INDEX_NONE)
+	{
+		const FItemInstance ItemToDrop_Instance = EquippedList.Items[FoundIndex].Item;
+
+		EquippedList.Items.RemoveAt(FoundIndex);
+		EquippedList.MarkArrayDirty();
+
+		if (UItemDatabaseComponent* DatabaseComp = PlayerState->GetItemDatabaseComponent())
+		{
+			DatabaseComp->RemoveItem(ItemToDrop_Instance.InstanceID);
+		}
+
+		// --- MODIFIED SECTION: This logic now directly accesses the C++ property ---
+		if (UAssetManager* AM = UAssetManager::GetIfInitialized())
+		{
+			if (UBaseItemDataAsset* DA = Cast<UBaseItemDataAsset>(AM->GetPrimaryAssetObject(ItemToDrop_Instance.StaticDataID)))
+			{
+				if (TSubclassOf<AActor> PickupClass = DA->PickupActorClass.LoadSynchronous())
+				{
+					if (APawn* Pawn = PlayerState->GetPawn())
+					{
+						FVector SpawnLocation = Pawn->GetActorLocation() + (Pawn->GetActorForwardVector() * 200.0f);
+						FRotator SpawnRotation = Pawn->GetActorRotation();
+						FActorSpawnParameters SpawnParams;
+						SpawnParams.Owner = Pawn;
+						SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+						if (AActor* NewPickup = GetWorld()->SpawnActor<AActor>(PickupClass, SpawnLocation, SpawnRotation, SpawnParams))
+						{
+							UHordeFunctionLibrary::InitializePickupActor(NewPickup, ItemToDrop_Instance);
+							if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(NewPickup->GetRootComponent()))
+							{
+								PrimComp->SetSimulatePhysics(true);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		HandleUnequip(Slot, ItemToDrop_Instance);
+		OnEquipmentChanged.Broadcast(Slot, FItemInstance());
 	}
 }
 
@@ -195,22 +251,16 @@ void UEquipmentComponent::HandleEquip(EEquipmentSlot Slot, const FItemInstance& 
 {
 	if (GetOwner()->HasAuthority())
 	{
-		// This logic should only run on the server.
 		ClearAllHandlesForSlot(Slot);
 		OnItemEquipped(Slot, ItemInstance);
 	}
-	// Note: The client-side visual update is handled by the OnEquipmentChanged delegate
-	// which is fired by the FastArraySerializer's PostReplicatedAdd callback.
 }
 
 void UEquipmentComponent::HandleUnequip(EEquipmentSlot Slot, const FItemInstance& ItemInstance)
 {
 	if (GetOwner()->HasAuthority())
 	{
-		// This logic should only run on the server.
 		OnItemUnequipped(Slot, ItemInstance);
 		ClearAllHandlesForSlot(Slot);
 	}
-	// Note: The client-side visual update is handled by the OnEquipmentChanged delegate
-	// which is fired by the FastArraySerializer's PreReplicatedRemove callback.
 }

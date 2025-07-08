@@ -8,6 +8,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "HordeExtractionGame.h"
 #include "GASPlayerState.h"
+#include "BaseItemDataAsset.h"
 #include "GameFramework/Pawn.h"
 #include "HordeFunctionLibrary.h"
 #include "ItemDatabaseComponent.h"
@@ -330,10 +331,9 @@ void UInventoryComponent::Server_DropItem_Implementation(const FGuid& ItemID)
 {
 	if (GetOwner()->HasAuthority())
 	{
-		// Perform garbage collection before dropping the item.
 		InventoryList.Items.RemoveAll([](const FItemEntry& Item) {
 			return Item.bPendingRemoval;
-		});
+			});
 		InventoryList.MarkArrayDirty();
 
 		AGASPlayerState* PlayerState = GetOwner<AGASPlayerState>();
@@ -346,40 +346,35 @@ void UInventoryComponent::Server_DropItem_Implementation(const FGuid& ItemID)
 
 		if (ItemToDrop_Instance)
 		{
-			// This is a copy, which is what we want to pass to the spawn function.
 			FItemInstance DroppedItemData = *ItemToDrop_Instance;
 
 			// Remove the item from both the inventory and the database.
 			RemoveItemByID(ItemID);
 			DatabaseComp->RemoveItem(ItemID);
-			
+
+			// --- MODIFIED SECTION: This logic now directly accesses the C++ property ---
 			if (UAssetManager* AM = UAssetManager::GetIfInitialized())
 			{
-				if (UPrimaryDataAsset* DA = Cast<UPrimaryDataAsset>(AM->GetPrimaryAssetObject(DroppedItemData.StaticDataID)))
+				if (UBaseItemDataAsset* DA = Cast<UBaseItemDataAsset>(AM->GetPrimaryAssetObject(DroppedItemData.StaticDataID)))
 				{
-					if (FObjectProperty* PickupClassProp = FindFProperty<FObjectProperty>(DA->GetClass(), "PickupActorClass"))
+					// Load the class from the soft reference
+					if (TSubclassOf<AActor> PickupClass = DA->PickupActorClass.LoadSynchronous())
 					{
-						if (UClass* PickupClass = Cast<UClass>(PickupClassProp->GetPropertyValue_InContainer(DA)))
+						APawn* Pawn = PlayerState->GetPawn();
+						if (!Pawn) return;
+
+						FVector SpawnLocation = Pawn->GetActorLocation() + (Pawn->GetActorForwardVector() * 200.0f);
+						FRotator SpawnRotation = Pawn->GetActorRotation();
+						FActorSpawnParameters SpawnParams;
+						SpawnParams.Owner = Pawn;
+						SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+						if (AActor* NewPickup = GetWorld()->SpawnActor<AActor>(PickupClass, SpawnLocation, SpawnRotation, SpawnParams))
 						{
-							APawn* Pawn = PlayerState->GetPawn();
-							if (!Pawn) return;
-
-							FVector SpawnLocation = Pawn->GetActorLocation() + (Pawn->GetActorForwardVector() * 200.0f); // Spawn 2m in front
-							FRotator SpawnRotation = Pawn->GetActorRotation();
-
-							FActorSpawnParameters SpawnParams;
-							SpawnParams.Owner = Pawn;
-							SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-							if (AActor* NewPickup = GetWorld()->SpawnActor<AActor>(PickupClass, SpawnLocation, SpawnRotation, SpawnParams))
+							UHordeFunctionLibrary::InitializePickupActor(NewPickup, DroppedItemData);
+							if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(NewPickup->GetRootComponent()))
 							{
-								UHordeFunctionLibrary::InitializePickupActor(NewPickup, DroppedItemData);
-
-								// Enable physics so it drops to the ground
-								if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(NewPickup->GetRootComponent()))
-								{
-									PrimComp->SetSimulatePhysics(true);
-								}
+								PrimComp->SetSimulatePhysics(true);
 							}
 						}
 					}

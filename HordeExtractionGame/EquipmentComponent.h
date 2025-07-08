@@ -9,7 +9,6 @@
 #include "EquipmentSystemTypes.h"
 #include "EquipmentComponent.generated.h"
 
-// A simple struct to hold all the handles related to a single equipped item.
 USTRUCT()
 struct FEquippedHandles
 {
@@ -22,15 +21,14 @@ struct FEquippedHandles
 	TArray<FActiveGameplayEffectHandle> EffectHandles;
 };
 
-// Delegate for when an item is equipped or unequipped
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChanged, EEquipmentSlot, Slot, const FItemInstance&, ItemInstance);
 
-UCLASS(ClassGroup=(Custom), Blueprintable)
+UCLASS(ClassGroup = (Custom), Blueprintable)
 class HORDEEXTRACTIONGAME_API UEquipmentComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
+public:
 	UEquipmentComponent();
 
 	UPROPERTY(BlueprintAssignable, Category = "Equipment")
@@ -48,10 +46,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void UnequipItem(EEquipmentSlot Slot);
 
+	// --- NEW: Function to handle dropping an item directly from a slot. ---
+	UFUNCTION(BlueprintCallable, Category = "Equipment")
+	void DropEquippedItem(EEquipmentSlot Slot);
+
 	UFUNCTION(BlueprintPure, Category = "Equipment")
 	bool GetEquippedItem(EEquipmentSlot Slot, FItemInstance& OutItem) const;
 
-	// --- Blueprint Callable Functions for managing spawned actors and handles ---
 	UFUNCTION(BlueprintCallable, Category = "Equipment | Server")
 	void StoreSpawnedActor(EEquipmentSlot Slot, AActor* InActor);
 
@@ -67,19 +68,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Equipment | Server")
 	AActor* GetSpawnedActorForSlot(EEquipmentSlot Slot);
 
-	// Because the handle structs aren't Blueprint types, we need helper functions to get the arrays.
 	UFUNCTION(BlueprintPure, Category = "Equipment | Server")
 	TArray<FGameplayAbilitySpecHandle> GetAbilityHandlesForSlot(EEquipmentSlot Slot);
 
 	UFUNCTION(BlueprintPure, Category = "Equipment | Server")
 	TArray<FActiveGameplayEffectHandle> GetEffectHandlesForSlot(EEquipmentSlot Slot);
 
-	// These functions are now responsible for calling the Blueprint events.
 	void HandleEquip(EEquipmentSlot Slot, const FItemInstance& ItemInstance);
 	void HandleUnequip(EEquipmentSlot Slot, const FItemInstance& ItemInstance);
 
 protected:
-	// These are now Blueprint events that you will implement in a Blueprint subclass.
 	UFUNCTION(BlueprintImplementableEvent, Category = "Equipment")
 	void OnItemEquipped(EEquipmentSlot Slot, const FItemInstance& ItemInstance);
 
@@ -92,7 +90,10 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void Server_UnequipItem(EEquipmentSlot Slot);
 
-	// These TMaps are not replicated. They live on the server and keep track of what has been given to the player.
+	// --- NEW: Server RPC for the drop logic. ---
+	UFUNCTION(Server, Reliable)
+	void Server_DropEquippedItem(EEquipmentSlot Slot);
+
 	UPROPERTY()
 	TMap<EEquipmentSlot, TObjectPtr<AActor>> SpawnedActors;
 

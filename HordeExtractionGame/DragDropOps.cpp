@@ -1,4 +1,3 @@
-
 // DragDropOps.cpp
 #include "DragDropOps.h"
 #include "InventoryViewModel.h"
@@ -10,6 +9,8 @@
 
 FInventoryDragDropOp::~FInventoryDragDropOp()
 {
+	// REVERTED: The destructor only needs to handle making the source widget
+	// visible again if a drop was cancelled. All success logic is now on the server.
 	if (!bDropSucceeded)
 	{
 		if (TSharedPtr<SInventoryItem> SourceItemPtr = SourceItem.Pin())
@@ -19,16 +20,24 @@ FInventoryDragDropOp::~FInventoryDragDropOp()
 	}
 }
 
-TSharedRef<FInventoryDragDropOp> FInventoryDragDropOp::New(const FGuid& InItemID, const FPrimaryAssetId& InStaticDataID, UInventoryViewModel* InViewModel, TSharedPtr<SWidget> InDecorator, FVector2D InDecoratorOffset, TSharedPtr<SInventoryItem> InSourceItem)
+TSharedRef<FInventoryDragDropOp> FInventoryDragDropOp::New(
+	const FGuid& InItemID,
+	const FPrimaryAssetId& InStaticDataID,
+	UInventoryViewModel* InViewModel,
+	EEquipmentSlot InSourceSlot,
+	TSharedPtr<SWidget> InDecorator,
+	FVector2D InDecoratorOffset,
+	TSharedPtr<SInventoryItem> InSourceItem)
 {
 	TSharedRef<FInventoryDragDropOp> Operation = MakeShared<FInventoryDragDropOp>();
 	Operation->ItemID = InItemID;
 	Operation->StaticDataID = InStaticDataID;
 	Operation->ViewModel = InViewModel;
+	Operation->SourceSlot = InSourceSlot;
 	Operation->Decorator = InDecorator;
 	Operation->DecoratorOffset = InDecoratorOffset;
 	Operation->SourceItem = InSourceItem;
-	
+
 	Operation->Construct();
 
 	return Operation;
@@ -36,16 +45,13 @@ TSharedRef<FInventoryDragDropOp> FInventoryDragDropOp::New(const FGuid& InItemID
 
 void FInventoryDragDropOp::OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent)
 {
-	// If the drop was not handled by any widget, and our success flag has not been set,
-	// then this is a "drop in world" event.
 	if (!bDropWasHandled && !bDropSucceeded && ViewModel.IsValid())
 	{
-		ViewModel->RequestDropItem(ItemID);
-		// A world drop is a successful outcome, so we set the flag.
-		bDropSucceeded = true; 
+		// MODIFIED: We now pass the SourceSlot to RequestDropItem.
+		ViewModel->RequestDropItem(ItemID, SourceSlot);
+		bDropSucceeded = true;
 	}
 
-	// The base class OnDrop is what calls the destructor, so we call it last.
 	FGameDragDropOperation::OnDrop(bDropWasHandled, MouseEvent);
 }
 
@@ -56,6 +62,5 @@ TSharedPtr<SWidget> FInventoryDragDropOp::GetDefaultDecorator() const
 
 FVector2D FInventoryDragDropOp::GetDecoratorPosition() const
 {
-	// This is the crucial part. We get the current cursor position and apply our offset.
 	return FSlateApplication::Get().GetCursorPos() + DecoratorOffset;
 }

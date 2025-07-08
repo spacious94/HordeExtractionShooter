@@ -16,7 +16,8 @@ public:
 		: _ViewModel(nullptr)
 		, _SlotType(EEquipmentSlot::None)
 		, _TileSize(64.f)
-	{}
+		{
+		}
 		SLATE_ARGUMENT(UInventoryViewModel*, ViewModel)
 		SLATE_ARGUMENT(EEquipmentSlot, SlotType)
 		SLATE_ARGUMENT(float, TileSize)
@@ -24,7 +25,7 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-	// This is the key function that will handle the drop logic in C++.
+	// --- RESTORED: This function will now handle the drop logic directly. ---
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 
 	// --- Drag/Drop Source Overrides ---

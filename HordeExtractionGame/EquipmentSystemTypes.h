@@ -23,6 +23,17 @@ enum class EEquipmentSlot : uint8
 	Backpack		UMETA(DisplayName = "Backpack")
 };
 
+// --- ADDED: C++ definition for EWeaponType ---
+UENUM(BlueprintType)
+enum class EWeaponType : uint8
+{
+	Rifle		UMETA(DisplayName = "Rifle"),
+	Pistol		UMETA(DisplayName = "Pistol"),
+	Shotgun		UMETA(DisplayName = "Shotgun"),
+	Sniper		UMETA(DisplayName = "Sniper")
+	// Add or replace these with your actual weapon types
+};
+
 USTRUCT(BlueprintType)
 struct FEquippedItem : public FFastArraySerializerItem
 {
