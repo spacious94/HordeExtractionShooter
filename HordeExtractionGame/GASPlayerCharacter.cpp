@@ -9,6 +9,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InteractionSource.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Net/UnrealNetwork.h"
 
@@ -244,4 +245,20 @@ void AGASPlayerCharacter::BindAttributeDelegates(UGASAbilitySystemComponent* ASC
 
 	// Also set the initial movement speed
 	GetCharacterMovement()->MaxWalkSpeed = AttributeSet->GetMovementSpeed();
+}
+
+// --- MODIFIED: The function now uses its internal C++ properties. ---
+void AGASPlayerCharacter::Server_SetWeaponMesh_Implementation(USkeletalMesh* NewWeaponMesh)
+{
+	// This code runs on the SERVER and uses the server's authoritative components.
+
+	if (FPGunComponent)
+	{
+		FPGunComponent->SetSkeletalMesh(NewWeaponMesh);
+	}
+
+	if (TPGunComponent)
+	{
+		TPGunComponent->SetSkeletalMesh(NewWeaponMesh);
+	}
 }

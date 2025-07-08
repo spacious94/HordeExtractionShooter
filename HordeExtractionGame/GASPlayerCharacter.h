@@ -78,6 +78,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void RequestClientClearFocus();
 
+	/** MODIFIED: The RPC no longer takes component parameters. */
+	UFUNCTION(BlueprintCallable, Server, Reliable, Category = "Equipment")
+	void Server_SetWeaponMesh(USkeletalMesh* NewWeaponMesh);
+
 
 protected:
 	// -- Pointers & Handles --
@@ -126,4 +130,13 @@ protected:
 
 	/** Helper function to bind all the attribute delegates */
 	void BindAttributeDelegates(UGASAbilitySystemComponent* ASC);
+
+	/** ADDED: C++ pointers to be set in the Blueprint's Construction Script. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	TObjectPtr<USkeletalMeshComponent> FPGunComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	TObjectPtr<USkeletalMeshComponent> TPGunComponent;
+
+
 };
